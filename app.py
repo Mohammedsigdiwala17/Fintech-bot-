@@ -1,92 +1,157 @@
 import streamlit as st
-from openai import OpenAI
-from fpdf import FPDF
-import datetime
+import openai
+import pandas as pd
+import matplotlib.pyplot as plt
+import speech_recognition as sr
+from gtts import gTTS
+from io import BytesIO
+import base64
 
-# -------------------- Page Setup --------------------
-st.set_page_config(page_title="FinBot AI", page_icon="💰", layout="centered")
-st.title("💰 FinBot AI – Your Personal Tax & GST Assistant")
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="FinBot AI 💰", layout="centered")
+st.title("💰 FinBot AI — Smart Indian Tax & Finance Assistant 🇮🇳")
+st.caption("Your personal AI-based Indian tax calculator, ITR guide, and voice assistant.")
 
-# -------------------- Sidebar Premium Info --------------------
-st.sidebar.header("FinBot AI Premium")
-st.sidebar.info("""
-- Download detailed PDF reports
-- Personalized tax-saving strategy
-- Historical tax comparison
-""")
+# --- API KEY ---
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# -------------------- User Inputs --------------------
-st.header("Enter Your Financial Details")
+# --- FINANCIAL INPUTS ---
+st.header("🧾 Enter Your Financial Details")
 
-income = st.number_input("Total Annual Income (₹)", min_value=0)
-ded_80C = st.number_input("Deductions under 80C (₹)", min_value=0)
-ded_80D = st.number_input("Deductions under 80D (₹)", min_value=0)
-other_deductions = st.number_input("Other Deductions (₹)", min_value=0)
-tds_paid = st.number_input("TDS Already Paid (₹)", min_value=0)
-prof_tax = st.number_input("Professional Tax (₹)", min_value=0)
-gst_collected = st.number_input("GST Collected (₹)", min_value=0)
-gst_paid = st.number_input("GST Paid (₹)", min_value=0)
+col1, col2 = st.columns(2)
+with col1:
+    total_income = st.number_input("Total Annual Income (₹)", min_value=0)
+    deductions_80C = st.number_input("Deductions under 80C (₹)", min_value=0, max_value=150000)
+    deductions_80D = st.number_input("Deductions under 80D (₹)", min_value=0)
+    other_deductions = st.number_input("Other Deductions (₹)", min_value=0)
+    age = st.number_input("Age", min_value=18, max_value=100)
 
-age = st.number_input("Your Age", min_value=18, max_value=120)
-marital_status = st.selectbox("Marital Status", ["Single", "Married"])
-business_type = st.selectbox("Income Type", ["Salaried", "Freelancer", "Business"])
-regime_preference = st.selectbox("Preferred Tax Regime", ["Old", "New", "Auto"])
+with col2:
+    tds_paid = st.number_input("TDS Paid (₹)", min_value=0)
+    professional_tax = st.number_input("Professional Tax (₹)", min_value=0)
+    gst_collected = st.number_input("GST Collected (₹)", min_value=0)
+    gst_paid = st.number_input("GST Paid (₹)", min_value=0)
+    regime = st.selectbox("Preferred Tax Regime", ["Old", "New"])
 
-user_question = st.text_input("Or ask a question to FinBot AI (optional):")
+income_type = st.selectbox("Income Type", ["Salaried", "Freelancer", "Business"])
+family_status = st.selectbox("Family Status", ["Single", "Married", "Senior Citizen"])
 
-# -------------------- OpenAI API Client --------------------
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+st.markdown("---")
 
-# -------------------- Generate Tax Summary --------------------
-if st.button("Generate Tax Summary") or user_question:
-    prompt = f"""
-    You are FinBot AI, a professional financial assistant and virtual accountant for Indian freelancers, small business owners, and self-employed professionals. 
+# --- Income vs Expenses Dashboard ---
+st.header("📊 Income vs Expenses Dashboard (Future Feature)")
+with st.expander("💡 Open Dashboard"):
+    st.write("Enter your monthly income and expenses to view your annual savings trend 👇")
 
-    User Input: 
-    - Total annual income: ₹{income}  
-    - Deductions: 80C ₹{ded_80C}, 80D ₹{ded_80D}, other ₹{other_deductions}  
-    - TDS paid: ₹{tds_paid}  
-    - Professional tax: ₹{prof_tax}  
-    - GST collected: ₹{gst_collected}, GST paid: ₹{gst_paid}  
-    - Age: {age}  
-    - Marital/family status: {marital_status}  
-    - Income type: {business_type}  
-    - Preferred tax regime: {regime_preference}  
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+              "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    income_data, expense_data = [], []
 
-    Your task: Generate a full tax summary including:
-    1. Taxable Income
-    2. Total Tax (Old vs New)
-    3. Recommended Regime
-    4. Net Income After Tax
-    5. GST Payable / Refund
-    6. Recommended ITR Form
-    7. Tax-saving tips
+    col1, col2 = st.columns(2)
+    for month in months:
+        with col1:
+            income = st.number_input(f"{month} Income (₹)", min_value=0, key=f"in_{month}")
+            income_data.append(income)
+        with col2:
+            expense = st.number_input(f"{month} Expense (₹)", min_value=0, key=f"ex_{month}")
+            expense_data.append(expense)
 
-    If the user asked a question: "{user_question}", answer it based on the financial data above.
-    Explain calculations step-by-step in ₹. Make it ready for display in Streamlit.
-    """
+    if st.button("📈 Generate Dashboard"):
+        df = pd.DataFrame({"Month": months, "Income": income_data, "Expenses": expense_data})
+        df["Net Savings"] = df["Income"] - df["Expenses"]
 
-    response = client.chat.completions.create(
-        model="gpt-5-mini",
-        messages=[
-            {"role": "system", "content": "You are FinBot AI, a professional financial assistant for Indian freelancers and small business owners."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.2
-    )
+        st.dataframe(df)
+        fig, ax = plt.subplots()
+        ax.plot(df["Month"], df["Income"], label="Income", marker="o")
+        ax.plot(df["Month"], df["Expenses"], label="Expenses", marker="o")
+        ax.plot(df["Month"], df["Net Savings"], label="Net Savings", marker="o")
+        ax.set_xlabel("Month")
+        ax.set_ylabel("Amount (₹)")
+        ax.legend()
+        st.pyplot(fig)
 
-    tax_summary = response.choices[0].message.content
-    st.subheader("✅ FinBot AI Tax Summary")
-    st.write(tax_summary)
+        st.success(f"🎯 Total Annual Savings: ₹{df['Net Savings'].sum():,.0f}")
 
-    # -------------------- PDF Download --------------------
-    if st.button("Download PDF Report"):
+st.markdown("---")
+
+# --- AI Tax Report Generation ---
+if st.button("🤖 Generate AI Tax Report"):
+    with st.spinner("Analyzing your tax data..."):
+
+        prompt = f"""
+        You are FinBot AI, a professional Indian tax consultant.
+        Based on this data:
+        Income ₹{total_income}, Age {age}, 80C ₹{deductions_80C}, 80D ₹{deductions_80D},
+        Other ₹{other_deductions}, TDS ₹{tds_paid}, Professional Tax ₹{professional_tax},
+        GST Collected ₹{gst_collected}, GST Paid ₹{gst_paid}, Family: {family_status}, Type: {income_type}, Regime: {regime}.
+        Return:
+        1. Taxable income
+        2. Tax under Old & New regimes
+        3. Recommended regime
+        4. GST payable/refund
+        5. ITR form
+        6. Tax-saving tips
+        7. Net income after tax
+        """
+
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+        )
+
+        result = response.choices[0].message.content
+        st.subheader("📄 AI-Generated Tax Report")
+        st.markdown(result)
+        st.code(result)
+
+        # --- PDF Download ---
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
-        pdf.multi_cell(0, 6, txt=f"FinBot AI Tax & GST Report\nGenerated on {datetime.date.today()}\n\n{tax_summary}")
-        pdf_file = f"FinBot_Report_{datetime.date.today()}.pdf"
-        pdf.output(pdf_file)
-        with open(pdf_file, "rb") as f:
-            st.download_button("Download PDF", f, file_name=pdf_file)
-        st.success("✅ PDF report generated successfully!")
+        pdf.multi_cell(0, 10, result)
+        pdf_buffer = BytesIO()
+        pdf.output(pdf_buffer)
+        st.download_button("📥 Download Report as PDF", data=pdf_buffer.getvalue(), file_name="FinBot_Report.pdf", mime="application/pdf")
+
+st.markdown("---")
+
+# --- 🎙️ Voice-Based Query Assistant ---
+st.header("🎙️ Ask FinBot AI by Voice")
+
+st.caption("Speak your question (e.g., 'How can I save tax under 80C?' or 'Which ITR form do I need?')")
+
+if st.button("🎤 Start Listening"):
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Listening... Speak now!")
+        audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+        st.info("Processing your voice...")
+
+    try:
+        query = recognizer.recognize_google(audio)
+        st.success(f"🗣️ You said: {query}")
+
+        voice_prompt = f"You are FinBot AI, a helpful Indian tax advisor. Answer this clearly and briefly: {query}"
+
+        voice_response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": voice_prompt}],
+            temperature=0.4,
+        )
+        answer = voice_response.choices[0].message.content
+        st.write("💬 FinBot AI says:")
+        st.markdown(answer)
+
+        # Generate voice reply
+        tts = gTTS(answer)
+        voice_bytes = BytesIO()
+        tts.write_to_fp(voice_bytes)
+        voice_bytes.seek(0)
+        audio_base64 = base64.b64encode(voice_bytes.read()).decode()
+        st.audio(f"data:audio/mp3;base64,{audio_base64}", format="audio/mp3")
+
+    except sr.UnknownValueError:
+        st.error("Sorry, I couldn't understand your voice. Please try again.")
+    except sr.RequestError:
+        st.error("Voice recognition service unavailable.")
