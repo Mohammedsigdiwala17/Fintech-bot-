@@ -1,17 +1,19 @@
 import streamlit as st
 from openai import OpenAI
 import io
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# ---- SETUP ----
+# ---- PAGE SETUP ----
 st.set_page_config(page_title="FinBot AI - Virtual Tax Assistant", layout="centered")
 
-st.title("💼 FinBot AI – Your Virtual Financial Assistant")
-st.markdown("### Calculate taxes, compare regimes, and get personalized savings suggestions!")
+st.title("💼 FinBot AI – Smart Tax & Finance Assistant")
+st.markdown("### Instantly calculate Income Tax, GST & get AI-based financial insights 🇮🇳")
 
-# Initialize OpenAI client
+# ---- OPENAI CLIENT ----
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ---- USER INPUT SECTION ----
+# ---- USER INPUTS ----
 st.subheader("📋 Enter Your Financial Details")
 
 col1, col2 = st.columns(2)
@@ -33,7 +35,7 @@ regime_preference = st.selectbox("Preferred Tax Regime", ["Compare Both", "Old R
 
 # ---- PROMPT CREATION ----
 prompt = f"""
-You are FinBot AI, a professional financial assistant for Indian freelancers and small business owners.
+You are FinBot AI, a professional financial assistant for Indian freelancers, salaried individuals, and business owners.
 
 Calculate and summarize the following based on Indian tax rules (FY 2025–26):
 
@@ -46,18 +48,18 @@ TDS Paid: ₹{tds_paid}, Professional Tax: ₹{prof_tax}
 GST Collected: ₹{gst_collected}, GST Paid: ₹{gst_paid}
 Preferred Regime: {regime_preference}
 
-Return a complete financial summary including:
+Return a clear financial summary including:
 1. Taxable Income  
 2. Tax (Old vs New Regime)  
 3. Recommended Regime  
 4. Net Income After Tax  
 5. GST Payable / Refund  
-6. ITR Form Recommendation  
+6. Recommended ITR Form  
 7. Tax Saving Tips  
-8. Professional Summary in clear bullet points with ₹ formatting.
+8. A professional summary in bullet points with ₹ formatting.
 """
 
-# ---- RUN ANALYSIS ----
+# ---- ANALYSIS BUTTON ----
 if st.button("💡 Generate Tax Summary"):
     if income == 0:
         st.warning("Please enter your income details to calculate.")
@@ -70,34 +72,53 @@ if st.button("💡 Generate Tax Summary"):
                     temperature=0.3
                 )
                 result = response.choices[0].message.content
-                st.success("✅ Tax Summary Generated Successfully!")
 
+                # ---- DISPLAY RESULTS ----
+                st.success("✅ Tax Summary Generated Successfully!")
                 st.markdown("### 📊 Your Tax Summary")
                 st.markdown(result)
 
-                # ---- COPY BUTTON ----
+                # ---- COPY SUMMARY ----
                 st.code(result, language="markdown")
-                st.button("📋 Copy Summary", on_click=lambda: st.session_state.update({"copied": True}))
-                if st.session_state.get("copied"):
-                    st.info("Copied to clipboard!")
-
-                # ---- DOWNLOAD AS TEXT-BASED PDF ----
-                pdf_buffer = io.BytesIO()
-                pdf_content = f"FinBot AI - Tax Summary Report\n\n{result}"
-                pdf_buffer.write(pdf_content.encode('utf-8'))
-                pdf_buffer.seek(0)
-
                 st.download_button(
-                    label="📥 Download Tax Report (PDF)",
-                    data=pdf_buffer,
+                    label="📥 Download Report (PDF)",
+                    data=result.encode("utf-8"),
                     file_name="FinBot_AI_Tax_Report.pdf",
                     mime="application/pdf"
                 )
 
-            except Exception as e:
-                st.error(f"⚠️ An error occurred: {e}")
+                # ---- INCOME VS EXPENSE DASHBOARD ----
+                st.markdown("---")
+                st.markdown("### 📈 Income vs Expenses Dashboard")
 
-# ---- FUTURE FEATURE PREVIEW ----
+                total_deductions = ded_80C + ded_80D + other_deductions + prof_tax + tds_paid
+                gst_payable = max(gst_collected - gst_paid, 0)
+                net_income = income - total_deductions - gst_payable
+
+                data = {
+                    "Category": ["Total Income", "Deductions", "GST Payable", "Net Income"],
+                    "Amount (₹)": [income, total_deductions, gst_payable, net_income]
+                }
+
+                df = pd.DataFrame(data)
+
+                fig, ax = plt.subplots(figsize=(6, 4))
+                ax.bar(df["Category"], df["Amount (₹)"])
+                ax.set_title("💰 Income vs Expenses Overview")
+                ax.set_ylabel("Amount (₹)")
+                st.pyplot(fig)
+
+                st.caption("This chart shows how your deductions and GST affect your total net income.")
+
+            except Exception as e:
+                st.error(f"⚠️ Error: {e}")
+
+# ---- FUTURE FEATURES ----
 st.markdown("---")
-st.markdown("### 📈 Coming Soon: Income vs Expenses Dashboard")
-st.caption("Track your income, expenses, and visualize savings automatically using FinBot AI Insights.")
+st.markdown("### 🔮 Coming Soon Features")
+st.markdown("""
+- 📊 Auto Income vs Expense Tracking Dashboard  
+- 🧾 Automated ITR Filing Assistant  
+- 💡 Smart Investment Recommendations  
+- 📈 Yearly Financial Planner with AI Predictions  
+""")
