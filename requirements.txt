@@ -1,3 +1,8 @@
-streamlit
-openai>=1.0.0
-fpdf
+streamlit==1.38.0
+openai==1.44.0
+pandas==2.2.3
+matplotlib==3.9.2
+fpdf==1.7.2
+SpeechRecognition==3.10.4
+gTTS==2.5.3
+pyaudio==0.2.14
