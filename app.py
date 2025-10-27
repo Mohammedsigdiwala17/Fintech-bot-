@@ -1,7 +1,5 @@
 import streamlit as st
 from openai import OpenAI
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 import io
 
 # ---- SETUP ----
@@ -83,18 +81,10 @@ if st.button("💡 Generate Tax Summary"):
                 if st.session_state.get("copied"):
                     st.info("Copied to clipboard!")
 
-                # ---- DOWNLOAD PDF ----
+                # ---- DOWNLOAD AS TEXT-BASED PDF ----
                 pdf_buffer = io.BytesIO()
-                pdf = canvas.Canvas(pdf_buffer, pagesize=letter)
-                pdf.drawString(72, 750, "FinBot AI - Tax Summary Report")
-                y_position = 720
-                for line in result.split("\n"):
-                    if y_position <= 50:
-                        pdf.showPage()
-                        y_position = 750
-                    pdf.drawString(72, y_position, line)
-                    y_position -= 15
-                pdf.save()
+                pdf_content = f"FinBot AI - Tax Summary Report\n\n{result}"
+                pdf_buffer.write(pdf_content.encode('utf-8'))
                 pdf_buffer.seek(0)
 
                 st.download_button(
