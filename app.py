@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 from fpdf import FPDF
 import datetime
 
@@ -34,8 +34,8 @@ regime_preference = st.selectbox("Preferred Tax Regime", ["Old", "New", "Auto"])
 
 user_question = st.text_input("Or ask a question to FinBot AI (optional):")
 
-# -------------------- OpenAI API Setup --------------------
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# -------------------- OpenAI API Client --------------------
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # -------------------- Generate Tax Summary --------------------
 if st.button("Generate Tax Summary") or user_question:
@@ -66,17 +66,20 @@ if st.button("Generate Tax Summary") or user_question:
     Explain calculations step-by-step in ₹. Make it ready for display in Streamlit.
     """
 
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-5-mini",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": "You are FinBot AI, a professional financial assistant for Indian freelancers and small business owners."},
+            {"role": "user", "content": prompt}
+        ],
         temperature=0.2
     )
 
-    tax_summary = response['choices'][0]['message']['content']
+    tax_summary = response.choices[0].message.content
     st.subheader("✅ FinBot AI Tax Summary")
     st.write(tax_summary)
 
-    # -------------------- PDF Download Feature --------------------
+    # -------------------- PDF Download --------------------
     if st.button("Download PDF Report"):
         pdf = FPDF()
         pdf.add_page()
@@ -84,6 +87,6 @@ if st.button("Generate Tax Summary") or user_question:
         pdf.multi_cell(0, 6, txt=f"FinBot AI Tax & GST Report\nGenerated on {datetime.date.today()}\n\n{tax_summary}")
         pdf_file = f"FinBot_Report_{datetime.date.today()}.pdf"
         pdf.output(pdf_file)
-        st.success(f"PDF report generated: {pdf_file}")
         with open(pdf_file, "rb") as f:
             st.download_button("Download PDF", f, file_name=pdf_file)
+        st.success("✅ PDF report generated successfully!")
