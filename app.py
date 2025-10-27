@@ -6,16 +6,17 @@ import speech_recognition as sr
 from gtts import gTTS
 from io import BytesIO
 import base64
+from fpdf import FPDF
 
-# --- PAGE CONFIG ---
+# ---------------------- PAGE SETUP ----------------------
 st.set_page_config(page_title="FinBot AI 💰", layout="centered")
 st.title("💰 FinBot AI — Smart Indian Tax & Finance Assistant 🇮🇳")
-st.caption("Your personal AI-based Indian tax calculator, ITR guide, and voice assistant.")
+st.caption("Your AI-based financial assistant for taxes, GST & finance management")
 
-# --- API KEY ---
+# ---------------------- OPENAI API ----------------------
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# --- FINANCIAL INPUTS ---
+# ---------------------- USER INPUTS ----------------------
 st.header("🧾 Enter Your Financial Details")
 
 col1, col2 = st.columns(2)
@@ -38,8 +39,9 @@ family_status = st.selectbox("Family Status", ["Single", "Married", "Senior Citi
 
 st.markdown("---")
 
-# --- Income vs Expenses Dashboard ---
+# ---------------------- INCOME VS EXPENSES DASHBOARD ----------------------
 st.header("📊 Income vs Expenses Dashboard (Future Feature)")
+
 with st.expander("💡 Open Dashboard"):
     st.write("Enter your monthly income and expenses to view your annual savings trend 👇")
 
@@ -74,9 +76,9 @@ with st.expander("💡 Open Dashboard"):
 
 st.markdown("---")
 
-# --- AI Tax Report Generation ---
+# ---------------------- TAX REPORT GENERATION ----------------------
 if st.button("🤖 Generate AI Tax Report"):
-    with st.spinner("Analyzing your tax data..."):
+    with st.spinner("Analyzing your data and generating report..."):
 
         prompt = f"""
         You are FinBot AI, a professional Indian tax consultant.
@@ -92,6 +94,7 @@ if st.button("🤖 Generate AI Tax Report"):
         5. ITR form
         6. Tax-saving tips
         7. Net income after tax
+        Explain clearly using rupee symbols and headings.
         """
 
         response = openai.chat.completions.create(
@@ -105,45 +108,49 @@ if st.button("🤖 Generate AI Tax Report"):
         st.markdown(result)
         st.code(result)
 
-        # --- PDF Download ---
+        # PDF Download
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
         pdf.multi_cell(0, 10, result)
-        pdf_buffer = BytesIO()
-        pdf.output(pdf_buffer)
-        st.download_button("📥 Download Report as PDF", data=pdf_buffer.getvalue(), file_name="FinBot_Report.pdf", mime="application/pdf")
+        pdf_output = BytesIO()
+        pdf.output(pdf_output)
+        pdf_output.seek(0)
+        st.download_button(
+            "📥 Download Report as PDF",
+            data=pdf_output,
+            file_name="FinBot_Tax_Report.pdf",
+            mime="application/pdf"
+        )
 
 st.markdown("---")
 
-# --- 🎙️ Voice-Based Query Assistant ---
-st.header("🎙️ Ask FinBot AI by Voice")
-
-st.caption("Speak your question (e.g., 'How can I save tax under 80C?' or 'Which ITR form do I need?')")
+# ---------------------- VOICE QUERY ASSISTANT ----------------------
+st.header("🎙️ FinBot Voice Assistant")
+st.caption("Ask FinBot any finance or tax question using your voice (e.g., 'How can I save tax under 80C?').")
 
 if st.button("🎤 Start Listening"):
     recognizer = sr.Recognizer()
     with sr.Microphone() as source:
-        st.info("Listening... Speak now!")
+        st.info("🎧 Listening... Please speak clearly.")
         audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
-        st.info("Processing your voice...")
+        st.info("Processing your query...")
 
     try:
         query = recognizer.recognize_google(audio)
         st.success(f"🗣️ You said: {query}")
 
-        voice_prompt = f"You are FinBot AI, a helpful Indian tax advisor. Answer this clearly and briefly: {query}"
-
+        voice_prompt = f"You are FinBot AI, an Indian tax & finance assistant. Answer briefly: {query}"
         voice_response = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": voice_prompt}],
             temperature=0.4,
         )
         answer = voice_response.choices[0].message.content
-        st.write("💬 FinBot AI says:")
+        st.write("💬 FinBot says:")
         st.markdown(answer)
 
-        # Generate voice reply
+        # Text-to-speech response
         tts = gTTS(answer)
         voice_bytes = BytesIO()
         tts.write_to_fp(voice_bytes)
@@ -152,6 +159,6 @@ if st.button("🎤 Start Listening"):
         st.audio(f"data:audio/mp3;base64,{audio_base64}", format="audio/mp3")
 
     except sr.UnknownValueError:
-        st.error("Sorry, I couldn't understand your voice. Please try again.")
+        st.error("⚠️ Sorry, I couldn't understand your voice. Please try again.")
     except sr.RequestError:
-        st.error("Voice recognition service unavailable.")
+        st.error("⚠️ Voice recognition service unavailable. Try again later.")
